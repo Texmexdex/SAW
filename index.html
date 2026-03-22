@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PoleSaw Control</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            touch-action: none;
+            /* Prevent scrolling while sliding */
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+
+        .status {
+            margin-bottom: 30px;
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .status.connected {
+            color: #4caf50;
+        }
+
+        .s-container {
+            position: relative;
+            width: 80px;
+            height: 300px;
+            background: #222;
+            border-radius: 40px;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+            border: 2px solid #333;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Custom Range Slider Vertical */
+        input[type=range] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 300px;
+            /* Swap width/height for transform */
+            height: 80px;
+            background: transparent;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            position: absolute;
+            top: 110px;
+            /* Center vertical calculation */
+            cursor: pointer;
+            outline: none;
+        }
+
+        /* Thumb */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 70px;
+            width: 70px;
+            border-radius: 50%;
+            background: #ff5722;
+            box-shadow: 0 0 15px #ff5722;
+            border: 4px solid #fff;
+            margin-top: -10px;
+            /* Align thumb? */
+        }
+
+        /* Track */
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 80px;
+            background: transparent;
+        }
+
+        .val-display {
+            font-size: 3em;
+            font-weight: bold;
+            margin-top: 30px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .btn-connect {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .btn-stop {
+            margin-top: 40px;
+            background: #d32f2f;
+            color: white;
+            border: none;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            font-size: 1.5em;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(211, 47, 47, 0.4);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.1s;
+        }
+
+        .btn-stop:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+
+<body>
+
+    <button id="btnConnect" class="btn-connect">CONNECT</button>
+
+    <h1>POLE SAW</h1>
+    <div id="statusText" class="status">Disconnected</div>
+
+    <div class="s-container">
+        <input type="range" id="throttle" min="0" max="255" value="0">
+    </div>
+
+    <div class="val-display"><span id="val">0</span>%</div>
+
+    <button id="btnStop" class="btn-stop">STOP</button>
+
+    <script>
+        // Updated UUIDs to match the flashed receiver
+        const serviceUUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+        const charUUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+
+        let device, server, service, characteristic;
+        let isConnected = false;
+        let heartbeatInterval = null;
+        let isSawActive = false;
+
+        const btnConnect = document.getElementById('btnConnect');
+        const statusText = document.getElementById('statusText');
+        const slider = document.getElementById('throttle');
+        const valDisplay = document.getElementById('val');
+        const btnStop = document.getElementById('btnStop');
+
+        btnConnect.addEventListener('click', connect);
+
+        // Core Heartbeat Logic
+        function setSawState(active) {
+            if (active && !isSawActive) {
+                isSawActive = true;
+                sendCommand('1'); // Initial blast
+                heartbeatInterval = setInterval(() => { sendCommand('1'); }, 50); // 50ms heartbeat
+            } else if (!active && isSawActive) {
+                isSawActive = false;
+                clearInterval(heartbeatInterval);
+                sendCommand('0'); // Kill command
+            }
+        }
+
+        async function sendCommand(cmd) {
+            if (!isConnected || !characteristic) return;
+            let encoder = new TextEncoder('utf-8');
+            try {
+                // Must use withoutResponse to prevent browser BLE stack crash from 50ms spam
+                await characteristic.writeValueWithoutResponse(encoder.encode(cmd));
+            } catch (e) {
+                console.error("Write failed", e);
+            }
+        }
+
+        // Slider Logic
+        slider.addEventListener('input', () => {
+            const val = parseInt(slider.value, 10);
+            updateDisplay(val);
+            
+            // Map any value above 0 to ON
+            if (val > 0) {
+                setSawState(true);
+            } else {
+                setSawState(false);
+            }
+        });
+
+        slider.addEventListener('change', () => {
+            slider.value = 0;
+            updateDisplay(0);
+            setSawState(false);
+        });
+
+        btnStop.addEventListener('click', () => {
+            slider.value = 0;
+            updateDisplay(0);
+            setSawState(false);
+        });
+
+        function updateDisplay(val) {
+            const pct = Math.round((val / 255) * 100);
+            valDisplay.innerText = pct;
+        }
+
+        async function connect() {
+            if (isConnected) {
+                if (device) device.gatt.disconnect();
+                return;
+            }
+
+            try {
+                statusText.innerText = "Scanning...";
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'Polesaw_ESP32' }], // Updated Name filter
+                    optionalServices: [serviceUUID]
+                });
+
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+
+                statusText.innerText = "Connecting...";
+                server = await device.gatt.connect();
+
+                service = await server.getPrimaryService(serviceUUID);
+                characteristic = await service.getCharacteristic(charUUID);
+
+                isConnected = true;
+                statusText.innerText = "CONNECTED";
+                statusText.classList.add('connected');
+                btnConnect.innerText = "DISCONNECT";
+
+            } catch (error) {
+                console.error(error);
+                statusText.innerText = "Connection Failed: " + error;
+            }
+        }
+
+        function onDisconnected() {
+            isConnected = false;
+            statusText.innerText = "Disconnected";
+            statusText.classList.remove('connected');
+            btnConnect.innerText = "CONNECT";
+            slider.value = 0;
+            updateDisplay(0);
+            setSawState(false);
+        }
+    </script>
+</body>
+
+</html>
