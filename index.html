@@ -4,8 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PoleSaw Control</title>
+    <title>Saw Control Hub</title>
     <style>
+        * { box-sizing: border-box; }
+
         body {
             background-color: #121212;
             color: #ffffff;
@@ -13,33 +15,74 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
             height: 100vh;
             margin: 0;
             touch-action: none;
-            /* Prevent scrolling while sliding */
+            overflow: hidden;
+        }
+
+        /* ===== TAB BAR ===== */
+        .tab-bar {
+            display: flex;
+            width: 100%;
+            background: #1a1a1a;
+            border-bottom: 2px solid #333;
+            flex-shrink: 0;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 14px 0;
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 1em;
+            font-weight: 600;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+        .tab-btn.active {
+            color: #fff;
+            border-bottom-color: #ff5722;
+            background: #222;
+        }
+
+        /* ===== TAB PANELS ===== */
+        .tab-panel {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            width: 100%;
+            padding: 20px;
+        }
+        .tab-panel.active {
+            display: flex;
         }
 
         h1 {
-            margin-bottom: 10px;
+            margin: 0 0 8px 0;
             font-weight: 300;
             letter-spacing: 2px;
+            font-size: 1.6em;
         }
 
         .status {
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             color: #888;
             font-size: 0.9em;
         }
-
         .status.connected {
             color: #4caf50;
         }
 
+        /* ===== SAW 1 SLIDER ===== */
         .s-container {
             position: relative;
             width: 80px;
-            height: 300px;
+            height: 260px;
             background: #222;
             border-radius: 40px;
             display: flex;
@@ -49,24 +92,20 @@
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
         }
 
-        /* Custom Range Slider Vertical */
         input[type=range] {
             appearance: none;
             -webkit-appearance: none;
-            width: 300px;
-            /* Swap width/height for transform */
+            width: 260px;
             height: 80px;
             background: transparent;
             transform: rotate(-90deg);
             transform-origin: center;
             position: absolute;
-            top: 110px;
-            /* Center vertical calculation */
+            top: 90px;
             cursor: pointer;
             outline: none;
         }
 
-        /* Thumb */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 70px;
@@ -76,10 +115,8 @@
             box-shadow: 0 0 15px #ff5722;
             border: 4px solid #fff;
             margin-top: -10px;
-            /* Align thumb? */
         }
 
-        /* Track */
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%;
             height: 80px;
@@ -87,33 +124,32 @@
         }
 
         .val-display {
-            font-size: 3em;
+            font-size: 2.5em;
             font-weight: bold;
-            margin-top: 30px;
+            margin-top: 15px;
             font-variant-numeric: tabular-nums;
         }
 
         .btn-connect {
-            position: absolute;
-            top: 20px;
-            right: 20px;
             background: #333;
             border: 1px solid #555;
             color: white;
-            padding: 10px 20px;
+            padding: 10px 24px;
             border-radius: 8px;
             cursor: pointer;
+            font-size: 0.9em;
+            margin-bottom: 15px;
         }
 
         .btn-stop {
-            margin-top: 40px;
+            margin-top: 20px;
             background: #d32f2f;
             color: white;
             border: none;
-            width: 120px;
-            height: 120px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
-            font-size: 1.5em;
+            font-size: 1.3em;
             font-weight: bold;
             box-shadow: 0 4px 15px rgba(211, 47, 47, 0.4);
             cursor: pointer;
@@ -121,89 +157,158 @@
             letter-spacing: 1px;
             transition: transform 0.1s;
         }
-
         .btn-stop:active {
             transform: scale(0.95);
+        }
+
+        /* ===== SAW 2 / SAW 3 TRIGGER BUTTON ===== */
+        .trigger-btn {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 6px solid #555;
+            font-size: 1.4em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .trigger-btn.idle {
+            background: #2e7d32;
+            color: #fff;
+            box-shadow: 0 0 30px rgba(46, 125, 50, 0.4);
+            border-color: #4caf50;
+        }
+        .trigger-btn.firing {
+            background: #d32f2f;
+            color: #fff;
+            box-shadow: 0 0 40px rgba(211, 47, 47, 0.6);
+            border-color: #ff5722;
+            transform: scale(0.96);
+        }
+        .trigger-btn.disconnected {
+            background: #333;
+            color: #666;
+            box-shadow: none;
+            border-color: #444;
+        }
+
+        .trigger-label {
+            margin-top: 20px;
+            font-size: 0.85em;
+            color: #888;
         }
     </style>
 </head>
 
 <body>
 
-    <button id="btnConnect" class="btn-connect">CONNECT</button>
-
-    <h1>POLE SAW</h1>
-    <div id="statusText" class="status">Disconnected</div>
-
-    <div class="s-container">
-        <input type="range" id="throttle" min="0" max="255" value="0">
+    <!-- TAB BAR -->
+    <div class="tab-bar">
+        <button class="tab-btn active" data-tab="saw1">SAW 1</button>
+        <button class="tab-btn" data-tab="saw2">SAW 2</button>
+        <button class="tab-btn" data-tab="saw3">SAW 3</button>
     </div>
 
-    <div class="val-display"><span id="val">0</span>%</div>
+    <!-- ==================== SAW 1 (Original Slider) ==================== -->
+    <div id="saw1" class="tab-panel active">
+        <button id="s1Connect" class="btn-connect">CONNECT</button>
+        <h1>SAW 1</h1>
+        <div id="s1Status" class="status">Disconnected</div>
 
-    <button id="btnStop" class="btn-stop">STOP</button>
+        <div class="s-container">
+            <input type="range" id="s1Throttle" min="0" max="255" value="0">
+        </div>
+
+        <div class="val-display"><span id="s1Val">0</span>%</div>
+
+        <button id="s1Stop" class="btn-stop">STOP</button>
+    </div>
+
+    <!-- ==================== SAW 2 (Press & Hold Trigger) ==================== -->
+    <div id="saw2" class="tab-panel">
+        <button id="s2Connect" class="btn-connect">CONNECT</button>
+        <h1>SAW 2</h1>
+        <div id="s2Status" class="status">Disconnected</div>
+
+        <button id="s2Trigger" class="trigger-btn disconnected">HOLD TO<br>RUN</button>
+        <div class="trigger-label">Press and hold to run &mdash; release to stop</div>
+    </div>
+
+    <!-- ==================== SAW 3 (Press & Hold Trigger) ==================== -->
+    <div id="saw3" class="tab-panel">
+        <button id="s3Connect" class="btn-connect">CONNECT</button>
+        <h1>SAW 3</h1>
+        <div id="s3Status" class="status">Disconnected</div>
+
+        <button id="s3Trigger" class="trigger-btn disconnected">HOLD TO<br>RUN</button>
+        <div class="trigger-label">Press and hold to run &mdash; release to stop</div>
+    </div>
 
     <script>
-        // Updated UUIDs to match the flashed receiver
-        const serviceUUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
-        const charUUID = "19b10001-e8f2-537e-4f6c-d104768a1214";
+    // ===================================================================
+    //  TAB SWITCHING
+    // ===================================================================
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.tab).classList.add('active');
+        });
+    });
 
-        let device, server, service, characteristic;
+    // ===================================================================
+    //  SAW 1 — Original VESC Slider (Polesaw_ESP32 / heartbeat on/off)
+    // ===================================================================
+    (function() {
+        const serviceUUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+        const charUUID    = "19b10001-e8f2-537e-4f6c-d104768a1214";
+
+        let device, characteristic;
         let isConnected = false;
         let heartbeatInterval = null;
         let isSawActive = false;
 
-        const btnConnect = document.getElementById('btnConnect');
-        const statusText = document.getElementById('statusText');
-        const slider = document.getElementById('throttle');
-        const valDisplay = document.getElementById('val');
-        const btnStop = document.getElementById('btnStop');
+        const btnConnect = document.getElementById('s1Connect');
+        const statusText = document.getElementById('s1Status');
+        const slider     = document.getElementById('s1Throttle');
+        const valDisplay = document.getElementById('s1Val');
+        const btnStop    = document.getElementById('s1Stop');
 
         btnConnect.addEventListener('click', connect);
 
-        // Core Heartbeat Logic
         function setSawState(active) {
             if (active && !isSawActive) {
                 isSawActive = true;
-                sendCommand('1'); // Initial blast
-                heartbeatInterval = setInterval(() => { sendCommand('1'); }, 50); // 50ms heartbeat
+                sendCmd('1');
+                heartbeatInterval = setInterval(() => sendCmd('1'), 50);
             } else if (!active && isSawActive) {
                 isSawActive = false;
                 clearInterval(heartbeatInterval);
-                sendCommand('0'); // Kill command
+                sendCmd('0');
             }
         }
 
-        async function sendCommand(cmd) {
+        async function sendCmd(cmd) {
             if (!isConnected || !characteristic) return;
-            let encoder = new TextEncoder('utf-8');
             try {
-                // Must use withoutResponse to prevent browser BLE stack crash from 50ms spam
-                await characteristic.writeValueWithoutResponse(encoder.encode(cmd));
-            } catch (e) {
-                console.error("Write failed", e);
-            }
+                await characteristic.writeValueWithoutResponse(new TextEncoder().encode(cmd));
+            } catch (e) { console.error("S1 write fail", e); }
         }
 
-        // Slider Logic
         slider.addEventListener('input', () => {
-            const val = parseInt(slider.value, 10);
-            updateDisplay(val);
-            
-            // Map any value above 0 to ON
-            if (val > 0) {
-                setSawState(true);
-            } else {
-                setSawState(false);
-            }
+            updateDisplay(parseInt(slider.value, 10));
+            setSawState(parseInt(slider.value, 10) > 0);
         });
-
         slider.addEventListener('change', () => {
             slider.value = 0;
             updateDisplay(0);
             setSawState(false);
         });
-
         btnStop.addEventListener('click', () => {
             slider.value = 0;
             updateDisplay(0);
@@ -211,39 +316,29 @@
         });
 
         function updateDisplay(val) {
-            const pct = Math.round((val / 255) * 100);
-            valDisplay.innerText = pct;
+            valDisplay.innerText = Math.round((val / 255) * 100);
         }
 
         async function connect() {
-            if (isConnected) {
-                if (device) device.gatt.disconnect();
-                return;
-            }
-
+            if (isConnected) { if (device) device.gatt.disconnect(); return; }
             try {
                 statusText.innerText = "Scanning...";
                 device = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'Polesaw_ESP32' }], // Updated Name filter
+                    filters: [{ name: 'Polesaw_ESP32' }],
                     optionalServices: [serviceUUID]
                 });
-
                 device.addEventListener('gattserverdisconnected', onDisconnected);
-
                 statusText.innerText = "Connecting...";
-                server = await device.gatt.connect();
-
-                service = await server.getPrimaryService(serviceUUID);
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(serviceUUID);
                 characteristic = await service.getCharacteristic(charUUID);
-
                 isConnected = true;
                 statusText.innerText = "CONNECTED";
                 statusText.classList.add('connected');
                 btnConnect.innerText = "DISCONNECT";
-
-            } catch (error) {
-                console.error(error);
-                statusText.innerText = "Connection Failed: " + error;
+            } catch (err) {
+                console.error(err);
+                statusText.innerText = "Failed: " + err;
             }
         }
 
@@ -256,7 +351,120 @@
             updateDisplay(0);
             setSawState(false);
         }
+    })();
+
+    // ===================================================================
+    //  SAW 2 & SAW 3 — Press-and-Hold Trigger (heartbeat while held)
+    // ===================================================================
+    function initTriggerSaw(config) {
+        const serviceUUID = config.serviceUUID;
+        const charUUID    = config.charUUID;
+        const deviceName  = config.deviceName;
+
+        let device, characteristic;
+        let isConnected = false;
+        let heartbeatInterval = null;
+
+        const btnConnect = document.getElementById(config.connectId);
+        const statusText = document.getElementById(config.statusId);
+        const triggerBtn = document.getElementById(config.triggerId);
+
+        btnConnect.addEventListener('click', connect);
+
+        // --- PRESS & HOLD LOGIC ---
+        function startFiring() {
+            if (!isConnected || !characteristic) return;
+            triggerBtn.classList.remove('idle');
+            triggerBtn.classList.add('firing');
+            triggerBtn.innerHTML = 'RUNNING';
+            sendCmd('1');
+            heartbeatInterval = setInterval(() => sendCmd('1'), 50);
+        }
+
+        function stopFiring() {
+            triggerBtn.classList.remove('firing');
+            if (isConnected) {
+                triggerBtn.classList.add('idle');
+                triggerBtn.innerHTML = 'HOLD TO<br>RUN';
+            }
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+            sendCmd('0');
+        }
+
+        // Mouse events
+        triggerBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startFiring(); });
+        triggerBtn.addEventListener('mouseup', stopFiring);
+        triggerBtn.addEventListener('mouseleave', stopFiring);
+
+        // Touch events (mobile)
+        triggerBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startFiring(); });
+        triggerBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopFiring(); });
+        triggerBtn.addEventListener('touchcancel', stopFiring);
+
+        async function sendCmd(cmd) {
+            if (!isConnected || !characteristic) return;
+            try {
+                await characteristic.writeValueWithoutResponse(new TextEncoder().encode(cmd));
+            } catch (e) { console.error(config.deviceName + " write fail", e); }
+        }
+
+        async function connect() {
+            if (isConnected) { if (device) device.gatt.disconnect(); return; }
+            try {
+                statusText.innerText = "Scanning...";
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: deviceName }],
+                    optionalServices: [serviceUUID]
+                });
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+                statusText.innerText = "Connecting...";
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(serviceUUID);
+                characteristic = await service.getCharacteristic(charUUID);
+                isConnected = true;
+                statusText.innerText = "CONNECTED";
+                statusText.classList.add('connected');
+                btnConnect.innerText = "DISCONNECT";
+                triggerBtn.classList.remove('disconnected');
+                triggerBtn.classList.add('idle');
+            } catch (err) {
+                console.error(err);
+                statusText.innerText = "Failed: " + err;
+            }
+        }
+
+        function onDisconnected() {
+            isConnected = false;
+            clearInterval(heartbeatInterval);
+            statusText.innerText = "Disconnected";
+            statusText.classList.remove('connected');
+            btnConnect.innerText = "CONNECT";
+            triggerBtn.classList.remove('idle', 'firing');
+            triggerBtn.classList.add('disconnected');
+            triggerBtn.innerHTML = 'HOLD TO<br>RUN';
+        }
+    }
+
+    // --- SAW 2 ---
+    initTriggerSaw({
+        serviceUUID: "22222222-e8f2-537e-4f6c-d104768a1214",
+        charUUID:    "33333333-e8f2-537e-4f6c-d104768a1214",
+        deviceName:  "Saw2_Network",
+        connectId:   "s2Connect",
+        statusId:    "s2Status",
+        triggerId:   "s2Trigger"
+    });
+
+    // --- SAW 3 ---
+    initTriggerSaw({
+        serviceUUID: "44444444-e8f2-537e-4f6c-d104768a1214",
+        charUUID:    "55555555-e8f2-537e-4f6c-d104768a1214",
+        deviceName:  "Saw3_Network",
+        connectId:   "s3Connect",
+        statusId:    "s3Status",
+        triggerId:   "s3Trigger"
+    });
     </script>
 </body>
-
 </html>
